@@ -176,23 +176,17 @@ public class FileSystem {
      * Add your Javadoc documentation for this method
      */
     public void deallocateBlocksForFile(int iNodeNumber) {
-        // TODO: replace this line with your code 
         try {
-            // Retrieve the inode associated with the given inode number
             INode inode = diskDevice.readInode(iNodeNumber);
-    
-            // Iterate over each block pointer in the inode
+
             for (int i = 0; i < INode.NUM_BLOCK_POINTERS; i++) {
                 int blockPointer = inode.getBlockPointer(i);
-    
-                // If the block pointer is valid (not equal to -1), deallocate the block
+
                 if (blockPointer != -1) {
-                    // Deallocate the block using the FreeBlockList
                     diskDevice.readFreeBlockList();
                     FreeBlockList freeBlockList = new FreeBlockList();
                     freeBlockList.deallocateBlock(blockPointer);
-    
-                    // Update the free block list on disk
+
                     diskDevice.writeFreeBlockList(freeBlockList.getFreeBlockList());
                 }
             }
