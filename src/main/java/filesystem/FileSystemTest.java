@@ -31,14 +31,14 @@ public class FileSystemTest {
         int numBytes = 1024; // Request allocation for 1 KB (2 blocks)
 
         // Allocate blocks for the file
-        int[] allocatedBlocks = fileSystem.allocateBlocksForFile(iNodeNumber, numBytes);
+        int[] allocatedBlocks = FileSystem.allocateBlocksForFile(iNodeNumber, numBytes);
 
         // Validate the allocated blocks
         assertNotNull(allocatedBlocks, "Allocated blocks should not be null.");
         assertEquals(allocatedBlocks.length, 2, "The number of allocated blocks should match the required blocks.");
 
         // Check that the blocks are indeed allocated (i.e., no free)
-        FreeBlockList freeBlockList = fileSystem.getDisk().readFreeBlockList();
+        FreeBlockList freeBlockList = FileSystem.getDisk().readFreeBlockList();
         for (int block : allocatedBlocks) {
             assertTrue(freeBlockList.isBlockFree(block), "Block should be allocated but found free.");
         }
@@ -51,7 +51,7 @@ public class FileSystemTest {
         int numBytes = Disk.NUM_BLOCKS * Disk.BLOCK_SIZE; // Request allocation for all blocks (unlikely to succeed)
 
         try {
-            fileSystem.allocateBlocksForFile(iNodeNumber, numBytes);
+            FileSystem.allocateBlocksForFile(iNodeNumber, numBytes);
             fail("Expected IOException when trying to allocate more blocks than available.");
         } catch (IOException e) {
             assertEquals(e.getMessage(), "FileSystem::allocateBlocksForFile: Not enough free blocks available.");
@@ -64,17 +64,17 @@ public class FileSystemTest {
         int iNodeNumber = 0;
         int numBytes = 1; // Allocate for 1 byte, which should result in 1 block allocation
 
-        int[] allocatedBlocks = fileSystem.allocateBlocksForFile(iNodeNumber, numBytes);
+        int[] allocatedBlocks = FileSystem.allocateBlocksForFile(iNodeNumber, numBytes);
         assertNotNull(allocatedBlocks, "Allocated blocks should not be null.");
         assertEquals(allocatedBlocks.length, 1, "Should allocate exactly 1 block for 1 byte.");
 
         // Ensure that a block has been allocated and it's the first available one
-        FreeBlockList freeBlockList = fileSystem.getDisk().readFreeBlockList();
+        FreeBlockList freeBlockList = FileSystem.getDisk().readFreeBlockList();
         assertTrue(freeBlockList.isBlockFree(allocatedBlocks[0]), "Allocated block should be free.");
 
         // Test allocating for a large file that requires more than one block
         numBytes = Disk.BLOCK_SIZE * 10; // Allocate for 10 blocks worth of data
-        allocatedBlocks = fileSystem.allocateBlocksForFile(iNodeNumber, numBytes);
+        allocatedBlocks = FileSystem.allocateBlocksForFile(iNodeNumber, numBytes);
 
         assertNotNull(allocatedBlocks, "Allocated blocks should not be null.");
         assertEquals(allocatedBlocks.length, 10, "Should allocate exactly 10 blocks for 10 blocks worth of data.");
@@ -86,7 +86,7 @@ public class FileSystemTest {
         int iNodeNumber = 0;
         int numBytes = 0;
 
-        int[] allocatedBlocks = fileSystem.allocateBlocksForFile(iNodeNumber, numBytes);
+        int[] allocatedBlocks = FileSystem.allocateBlocksForFile(iNodeNumber, numBytes);
 
         assertNotNull(allocatedBlocks, "Allocated blocks should not be null.");
         assertEquals(allocatedBlocks.length, 0, "No blocks should be allocated for 0 bytes.");

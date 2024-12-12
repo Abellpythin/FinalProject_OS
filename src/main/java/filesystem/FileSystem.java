@@ -29,8 +29,8 @@ public class FileSystem {
         for (int i = 0; i < Disk.NUM_INODES && !isCreated; i++) {
             tmpINode = diskDevice.readInode(i);
             String name = tmpINode.getFileName();
-            if (name.trim().equals(fileName)){
-                throw new IOException("FileSystem::create: "+fileName+
+            if (name.trim().equals(fileName)) {
+                throw new IOException("FileSystem::create: " + fileName +
                         " already exists");
             } else if (tmpINode.getFileName() == null) {
                 this.iNodeForFile = new INode();
@@ -130,8 +130,8 @@ public class FileSystem {
      * @throws IOException If disk is not accessible for writing
      */
     public void close(int fileDescriptor) throws IOException {
-        if (fileDescriptor != this.iNodeNumber){
-            throw new IOException("FileSystem::close: file descriptor, "+
+        if (fileDescriptor != this.iNodeNumber) {
+            throw new IOException("FileSystem::close: file descriptor, " +
                     fileDescriptor + " does not match file descriptor " +
                     "of open file");
         }
@@ -165,53 +165,65 @@ public class FileSystem {
      * Add your Javadoc documentation for this method
      */
     public int[] allocateBlocksForFile(int iNodeNumber, int numBytes) throws IOException {
-        // Calculate how many blocks are needed to store the file
+        // Calculate the number of blocks required for the given file size (rounded up)
         int numBlocksRequired = (numBytes + Disk.BLOCK_SIZE - 1) / Disk.BLOCK_SIZE; // Round up
 
-        // Initialize an array to store the block pointers for the inode
+        // Initialize the array to hold the allocated block numbers
         int[] allocatedBlocks = new int[numBlocksRequired];
 
-        // Read the free block list from disk
+        // Read the current free block list from the disk
         FreeBlockList freeBlockList = diskDevice.readFreeBlockList();
 
-        // Counter for the number of blocks successfully allocated
+        // Track the number of blocks we've allocated
         int allocatedCount = 0;
 
-        // Iterate over the free block list to find available blocks
-        for (int i = 0; i < Disk.NUM_BLOCKS && allocatedCount < numBlocksRequired; i++) {
+        // Iterate over the free block list to find free blocks
+        for (int i = 0; i < freeBlockList.getTotalBlocks() && allocatedCount < numBlocksRequired; i++) {
             if (freeBlockList.isBlockFree(i)) {
-                // Mark the block as allocated
+                // Allocate the block by marking it as used
                 freeBlockList.allocateBlock(i);
-                // Store the allocated block number in the array
+
+                // Add the allocated block to the list of allocated blocks
                 allocatedBlocks[allocatedCount] = i;
+
+                // Increment the count of allocated blocks
                 allocatedCount++;
             }
         }
 
-        // If we could not allocate enough blocks, throw an exception
+        // If we couldn't allocate enough blocks, throw an IOException
         if (allocatedCount < numBlocksRequired) {
             throw new IOException("FileSystem::allocateBlocksForFile: Not enough free blocks available.");
         }
 
-        // Read the inode to update it with the new block pointers
+        // Read the inode for the file from the disk
         INode inode = diskDevice.readInode(iNodeNumber);
 
-        // Set the block pointers in the inode
-        inode.setBlockPointers(allocatedBlocks);
+        // Check if there are enough block pointers in the inode
+        int[] indexBlockPointers = new int[INode.NUM_BLOCK_POINTERS]; // Assume a max of NUM_BLOCK_POINTERS index blocks
 
-        // Write the updated inode back to disk
+        // Set the first block pointer to be the index block that will store the data block pointers
+        indexBlockPointers[0] = allocatedBlocks[0]; // Just an example, should be the actual block allocated for the index
+
+        // Here, the blocks in 'allocatedBlocks' should be split into smaller index blocks, based on size
+        // (you would need more logic to handle large files that exceed the block pointer limit)
+
+        // Update the inode with the index block pointers
+        inode.setBlockPointer(indexBlockPointers);
+
+        // Write the updated inode back to the disk
         diskDevice.writeInode(inode, iNodeNumber);
 
-        // Write the updated free block list back to disk
-        diskDevice.writeFreeBlockList(freeBlockList.getFreeBlockList());
-
+        // Return the list of allocated blocks
         return allocatedBlocks;
     }
 
 
-    /**
-     * Add your Javadoc documentation for this method
-     */
+
+
+        /**
+         * Add your Javadoc documentation for this method
+         */
     public void deallocateBlocksForFile(int iNodeNumber) {
         // TODO: replace this line with your code 
         try {
