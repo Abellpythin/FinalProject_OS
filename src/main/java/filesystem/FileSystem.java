@@ -4,7 +4,7 @@ import java.io.IOException;
 
 
 public class FileSystem {
-    private Disk diskDevice;
+    public Disk diskDevice;
 
     private int iNodeNumber;
     private int fileDescriptor;
@@ -155,8 +155,9 @@ public class FileSystem {
      * Add your Javadoc documentation for this method
      */
     public void write(int fileDescriptor, String data) throws IOException {
-        if (fileDescriptor != this.iNodeNumber || this.iNodeForFile == null) {
-            throw new IOException("FileSystem::write: Invalid file descriptor");
+        String fileName = this.iNodeForFile.getFileName();
+        if (fileName == null) {
+            throw new IOException("FileSystem::write: File name is null");
         }
 
         int dataSize = data.length();
