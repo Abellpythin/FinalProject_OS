@@ -1,10 +1,11 @@
 package filesystem;
 
 import org.testng.annotations.Test;
+import java.io.IOException;
 
 import static org.testng.Assert.*;
 
-class FileSystemTest {
+public class FileSystemTest {
 
     @Test
     void write() {
