@@ -164,13 +164,50 @@ public class FileSystem {
     /**
      * Add your Javadoc documentation for this method
      */
-    public int[] allocateBlocksForFile(int iNodeNumber, int numBytes)
-            throws IOException {
+    public int[] allocateBlocksForFile(int iNodeNumber, int numBytes) throws IOException {
+        // Calculate how many blocks are needed to store the file
+        int numBlocksRequired = (numBytes + Disk.BLOCK_SIZE - 1) / Disk.BLOCK_SIZE; // Round up
 
-        // TODO: replace this line with your code
+        // Initialize an array to store the block pointers for the inode
+        int[] allocatedBlocks = new int[numBlocksRequired];
 
-        return null;
+        // Read the free block list from disk
+        FreeBlockList freeBlockList = diskDevice.readFreeBlockList();
+
+        // Counter for the number of blocks successfully allocated
+        int allocatedCount = 0;
+
+        // Iterate over the free block list to find available blocks
+        for (int i = 0; i < Disk.NUM_BLOCKS && allocatedCount < numBlocksRequired; i++) {
+            if (freeBlockList.isBlockFree(i)) {
+                // Mark the block as allocated
+                freeBlockList.allocateBlock(i);
+                // Store the allocated block number in the array
+                allocatedBlocks[allocatedCount] = i;
+                allocatedCount++;
+            }
+        }
+
+        // If we could not allocate enough blocks, throw an exception
+        if (allocatedCount < numBlocksRequired) {
+            throw new IOException("FileSystem::allocateBlocksForFile: Not enough free blocks available.");
+        }
+
+        // Read the inode to update it with the new block pointers
+        INode inode = diskDevice.readInode(iNodeNumber);
+
+        // Set the block pointers in the inode
+        inode.setBlockPointers(allocatedBlocks);
+
+        // Write the updated inode back to disk
+        diskDevice.writeInode(inode, iNodeNumber);
+
+        // Write the updated free block list back to disk
+        diskDevice.writeFreeBlockList(freeBlockList.getFreeBlockList());
+
+        return allocatedBlocks;
     }
+
 
     /**
      * Add your Javadoc documentation for this method
