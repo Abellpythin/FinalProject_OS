@@ -23,7 +23,7 @@ public class FileSystemTest {
     }
     // Setup method to initialize file system before each test.
 
-// Updated
+
 @Test
 public void testAllocateBlocksForFile_Success() throws IOException {
     // Set up FileSystem and Disk
@@ -53,4 +53,29 @@ public void testAllocateBlocksForFile_Success() throws IOException {
         assertTrue((freeBlockList[block / 8] & (1 << (block % 8))) != 0);
     }
 }
+    //verifies the behavior when there are not enough free blocks to allocate for a file.
+    // Insufficient Free Blocks:
+    //The test sets up a situation where only one block is free, but the file requires two.
+    //The method should throw an IOException when it can't find enough free blocks.
+    @Test
+    public void testAllocateBlocksForFile_InsufficientBlocks() throws IOException {
+        // Set up FileSystem and Disk
+        FileSystem fs = new FileSystem();
+        Disk disk = new Disk();
+        disk.format();  // Format the disk to clear all blocks
+
+        // Manually occupy all but one block
+        byte[] freeBlockList = disk.readFreeBlockList();
+        for (int i = 1; i < freeBlockList.length * 8; i++) { // Leave the first block free
+            freeBlockList[i / 8] |= (1 << (i % 8));
+        }
+        disk.writeFreeBlockList(freeBlockList);
+
+        // Try to allocate blocks for a file requiring 2 blocks
+        int fileSize = 1024;  // 1 KB (2 blocks required)
+        int iNodeNumber = 1;
+
+        // Assert that an IOException is thrown due to insufficient free blocks
+        assertThrows(IOException.class, () -> fs.allocateBlocksForFile(iNodeNumber, fileSize));
+    }
 }
