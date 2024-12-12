@@ -146,8 +146,26 @@ public class FileSystem {
      * Add your Javadoc documentation for this method
      */
     public String read(int fileDescriptor) throws IOException {
-        // TODO: Replace this line with your code
-        return null;
+        if (fileDescriptor != this.iNodeNumber || this.iNodeForFile == null) {
+            throw new IOException("FileSystem::read: Invalid file descriptor or inode is null.");
+        }
+
+        INode inode = this.iNodeForFile;
+        int fileSize = inode.getSize();
+        byte[] fileData = new byte[fileSize];
+        int bytesRead = 0;
+
+        // Read from each allocated block
+        for (int i = 0; i < INode.NUM_BLOCK_POINTERS && bytesRead < fileSize; i++) {
+            int blockNumber = inode.getBlockPointer(i);
+            if (blockNumber == -1) break;
+
+            byte[] blockData = diskDevice.readDataBlock(blockNumber);
+            int bytesToRead = Math.min(Disk.BLOCK_SIZE, fileSize - bytesRead);
+            System.arraycopy(blockData, 0, fileData, bytesRead, bytesToRead);
+            bytesRead += bytesToRead;
+        }
+        return new String(fileData);
     }
 
 
