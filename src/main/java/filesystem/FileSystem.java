@@ -4,7 +4,7 @@ import java.io.IOException;
 
 
 public class FileSystem {
-    private Disk diskDevice;
+    private final Disk diskDevice;
 
     private int iNodeNumber;
     private int fileDescriptor;
@@ -172,21 +172,21 @@ public class FileSystem {
         int[] allocatedBlocks = new int[numBlocksRequired];
 
         // Read the current free block list from the disk
-        FreeBlockList freeBlockList = diskDevice.readFreeBlockList();
+        byte[] freeBlockList = diskDevice.readFreeBlockList();
 
         // Track the number of blocks we've allocated
         int allocatedCount = 0;
 
         // Iterate over the free block list to find free blocks
-        for (int i = 0; i < freeBlockList.getTotalBlocks() && allocatedCount < numBlocksRequired; i++) {
-            if (freeBlockList.isBlockFree(i)) {
-                // Allocate the block by marking it as used
-                freeBlockList.allocateBlock(i);
+        for (int i = 0; (i < freeBlockList.length * 8) && (allocatedCount < numBlocksRequired); i++) {
+            if ((freeBlockList[i / 8] & (1 << (i % 8))) == 0) {
+                // Block is free
+                FreeBlockList freeList = new FreeBlockList();
+                freeList.setFreeBlockList(freeBlockList);
+                freeList.allocateBlock(i);
 
                 // Add the allocated block to the list of allocated blocks
                 allocatedBlocks[allocatedCount] = i;
-
-                // Increment the count of allocated blocks
                 allocatedCount++;
             }
         }
@@ -199,29 +199,72 @@ public class FileSystem {
         // Read the inode for the file from the disk
         INode inode = diskDevice.readInode(iNodeNumber);
 
-        // Check if there are enough block pointers in the inode
-        int[] indexBlockPointers = new int[INode.NUM_BLOCK_POINTERS]; // Assume a max of NUM_BLOCK_POINTERS index blocks
+        // Handle direct block pointers first
+        int numDirectPointers = Math.min(INode.NUM_BLOCK_POINTERS, allocatedCount);
 
-        // Set the first block pointer to be the index block that will store the data block pointers
-        indexBlockPointers[0] = allocatedBlocks[0]; // Just an example, should be the actual block allocated for the index
+        // Set the direct block pointers
+        for (int i = 0; i < numDirectPointers; i++) {
+            inode.setBlockPointer(i, allocatedBlocks[i]);
+        }
 
-        // Here, the blocks in 'allocatedBlocks' should be split into smaller index blocks, based on size
-        // (you would need more logic to handle large files that exceed the block pointer limit)
+        // If the file requires more blocks than direct pointers, create an index block to store additional pointers
+        if (allocatedCount > INode.NUM_BLOCK_POINTERS) {
+            // Create an index block to store the additional block pointers (pointers are 4 bytes each)
+            byte[] indirectBlocks = new byte[Disk.BLOCK_SIZE];
+            int indirectBlockPointer = allocateIndexBlock(indirectBlocks, allocatedBlocks, allocatedCount);
 
-        // Update the inode with the index block pointers
-        inode.setBlockPointer(indexBlockPointers);
+            // Set the index block pointer in the inode (pointing to the indirect block)
+            inode.setBlockPointer(INode.NUM_BLOCK_POINTERS - 1, indirectBlockPointer);
+        }
 
-        // Write the updated inode back to the disk
+        // Write the updated inode back to disk
         diskDevice.writeInode(inode, iNodeNumber);
+
+        // Write the updated free block list back to disk
+        diskDevice.writeFreeBlockList(freeBlockList);
 
         // Return the list of allocated blocks
         return allocatedBlocks;
     }
 
+    private int allocateIndexBlock(byte[] indirectBlocks, int[] allocatedBlocks, int endIndex) throws IOException {
+        // Allocate an index block
+        int indexBlockPointer = -1;
+        byte[] freeBlockList = diskDevice.readFreeBlockList();
+
+        for (int i = 0; i < freeBlockList.length * 8; i++) {
+            if ((freeBlockList[i / 8] & (1 << (i % 8))) == 0) {
+                // Found a free block for the index block
+                indexBlockPointer = i;
+                FreeBlockList freeList = new FreeBlockList();
+                freeList.setFreeBlockList(freeBlockList);
+                freeList.allocateBlock(i);
+
+                // Set up the index block with additional block pointers
+                for (int j = INode.NUM_BLOCK_POINTERS; j < endIndex; j++) {
+                    // Write the block pointers (4 bytes each) into the indirect block
+                    int pointerIndex = (j - INode.NUM_BLOCK_POINTERS) * 4;
+                    indirectBlocks[pointerIndex] = (byte) (allocatedBlocks[j] & 0xFF);
+                    indirectBlocks[pointerIndex + 1] = (byte) ((allocatedBlocks[j] >> 8) & 0xFF);
+                    indirectBlocks[pointerIndex + 2] = (byte) ((allocatedBlocks[j] >> 16) & 0xFF);
+                    indirectBlocks[pointerIndex + 3] = (byte) ((allocatedBlocks[j] >> 24) & 0xFF);
+                }
+
+                // Write the index block to disk
+                diskDevice.writeDataBlock(indirectBlocks, indexBlockPointer);
+                break;
+            }
+        }
+
+        if (indexBlockPointer == -1) {
+            throw new IOException("FileSystem::allocateBlocksForFile: Unable to allocate index block.");
+        }
+
+        return indexBlockPointer;
+    }
 
 
-
-        /**
+    /**
          * Add your Javadoc documentation for this method
          */
     public void deallocateBlocksForFile(int iNodeNumber) {
