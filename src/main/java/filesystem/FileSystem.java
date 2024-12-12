@@ -129,7 +129,7 @@ public class FileSystem {
      *
      * @throws IOException If disk is not accessible for writing
      */
-    public void close(int fileDescriptor) throws IOException {
+    public static void close(int fileDescriptor) throws IOException {
         if (fileDescriptor != this.iNodeNumber){
             throw new IOException("FileSystem::close: file descriptor, "+
                     fileDescriptor + " does not match file descriptor " +
@@ -146,37 +146,26 @@ public class FileSystem {
      * Add your Javadoc documentation for this method
      */
     public String read(int fileDescriptor) throws IOException {
-        // TODO: Replace this line with your code
-        INode inode = diskDevice.readInode(fileDescriptor);
-        if (inode == null || inode.getFileName() == null) {
-            throw new IOException("FileSystem::read: Invalid file descriptor or file does not exist.");
+        if (fileDescriptor != this.iNodeNumber || this.iNodeForFile == null) {
+            throw new IOException("FileSystem::read: Invalid file descriptor or inode is null.");
         }
 
+        INode inode = this.iNodeForFile;
         int fileSize = inode.getSize();
-        StringBuilder fileData = new StringBuilder();
+        byte[] fileData = new byte[fileSize];
+        int bytesRead = 0;
 
-        int fullBlocks = fileSize / Disk.BLOCK_SIZE;
-        int remainingBytes = fileSize % Disk.BLOCK_SIZE;
-
-        for (int i = 0; i < fullBlocks; i++) {
+        // Read from each allocated block
+        for (int i = 0; i < INode.NUM_BLOCK_POINTERS && bytesRead < fileSize; i++) {
             int blockNumber = inode.getBlockPointer(i);
-            if (blockNumber == -1) {
-                throw new IOException("FileSystem::read: Block pointer not valid at index " + i);
-            }
-            byte[] blockData = diskDevice.readDataBlock(blockNumber);
-            fileData.append(new String(blockData));
-        }
+            if (blockNumber == -1) break;
 
-        if (remainingBytes > 0) {
-            int blockNumber = inode.getBlockPointer(fullBlocks);
-            if (blockNumber == -1) {
-                throw new IOException("FileSystem::read: Block pointer not valid at index " + fullBlocks);
-            }
             byte[] blockData = diskDevice.readDataBlock(blockNumber);
-            fileData.append(new String(blockData, 0, remainingBytes));
+            int bytesToRead = Math.min(Disk.BLOCK_SIZE, fileSize - bytesRead);
+            System.arraycopy(blockData, 0, fileData, bytesRead, bytesToRead);
+            bytesRead += bytesToRead;
         }
-
-        return fileData.toString();
+        return new String(fileData);
     }
 
 

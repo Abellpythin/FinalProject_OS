@@ -2,9 +2,12 @@ package filesystem;
 
 import org.testng.annotations.Test;
 
-import static org.testng.Assert.*;
+import java.io.IOException;
 
-class FileSystemTest {
+import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.fail;
+
+public class FileSystemTest {
 
     @Test
     void write() {
@@ -15,16 +18,39 @@ class FileSystemTest {
     }
 
     @Test
-    void read() throws IOException {
-        fileSystem.create("testFile");
-        int fd = fileSystem.open("testFile");
-        fileSystem.write(fd, "Hello RAID 0!!!");
-        String content = fileSystem.read(fd);
-        assertEquals("Hello RAID 0!!!", content, "Read content should match the written content");
+    public void testRead() throws IOException {
+        String fileName = "testFile.txt";
+        String content = "This is a test content.";
+
+        int fd = fileSystem.create(fileName);
+        fileSystem.write(fd, content);
+        fileSystem.close(fd);
+
+        fd = fileSystem.open(fileName);
+        String readContent = fileSystem.read(fd);
+        fileSystem.close(fd);
+
+        assertEquals(content, readContent);
     }
 
+
     @Test
-    void testWrite() {
+    public void testWrite() {
+        try {
+            String fileName = "testWriteFile.txt";
+            String content = "Writing to the file system.";
+
+            int fd = fileSystem.create(fileName);
+            fileSystem.write(fd, content);
+            fileSystem.close(fd);
+
+            fd = fileSystem.open(fileName);
+            String readContent = fileSystem.read(fd);
+            fileSystem.close(fd);
+
+            assertEquals(content, readContent);
+        } catch (IOException e) {
+            fail("IOException occurred: " + e.getMessage());
+        }
     }
 }
-// Updated
