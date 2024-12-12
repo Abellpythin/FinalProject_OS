@@ -15,7 +15,12 @@ class FileSystemTest {
     }
 
     @Test
-    void read() {
+    void read() throws IOException {
+        fileSystem.create("testFile");
+        int fd = fileSystem.open("testFile");
+        fileSystem.write(fd, "Hello RAID 0!!!");
+        String content = fileSystem.read(fd);
+        assertEquals("Hello RAID 0!!!", content, "Read content should match the written content");
     }
 
     @Test

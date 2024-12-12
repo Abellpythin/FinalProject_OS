@@ -147,7 +147,36 @@ public class FileSystem {
      */
     public String read(int fileDescriptor) throws IOException {
         // TODO: Replace this line with your code
-        return null;
+        INode inode = diskDevice.readInode(fileDescriptor);
+        if (inode == null || inode.getFileName() == null) {
+            throw new IOException("FileSystem::read: Invalid file descriptor or file does not exist.");
+        }
+
+        int fileSize = inode.getSize();
+        StringBuilder fileData = new StringBuilder();
+
+        int fullBlocks = fileSize / Disk.BLOCK_SIZE;
+        int remainingBytes = fileSize % Disk.BLOCK_SIZE;
+
+        for (int i = 0; i < fullBlocks; i++) {
+            int blockNumber = inode.getBlockPointer(i);
+            if (blockNumber == -1) {
+                throw new IOException("FileSystem::read: Block pointer not valid at index " + i);
+            }
+            byte[] blockData = diskDevice.readDataBlock(blockNumber);
+            fileData.append(new String(blockData));
+        }
+
+        if (remainingBytes > 0) {
+            int blockNumber = inode.getBlockPointer(fullBlocks);
+            if (blockNumber == -1) {
+                throw new IOException("FileSystem::read: Block pointer not valid at index " + fullBlocks);
+            }
+            byte[] blockData = diskDevice.readDataBlock(blockNumber);
+            fileData.append(new String(blockData, 0, remainingBytes));
+        }
+
+        return fileData.toString();
     }
 
 
