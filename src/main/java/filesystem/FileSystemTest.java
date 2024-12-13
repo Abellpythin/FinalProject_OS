@@ -1,96 +1,127 @@
 package filesystem;
 
-import org.testng.annotations.Test;
 
+
+import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.Test;
 import static org.testng.Assert.*;
 
-class FileSystemTest {
 
-    @Test
-    void write() {
-    }
+import java.io.IOException;
 
-    @Test
-    void close() {
-    }
 
-    @Test
-    void read() {
-    }
 
-    @Test
-    void testWrite() {
-    }
-    // Setup method to initialize file system before each test.
 
-    @Test
-    void testAllocateBlocksForFile_Success() throws IOException {
-        // Test successful allocation of blocks.
-        int iNodeNumber = 0; // Assume the inode number is valid and initialized.
-        int numBytes = 1024; // Request allocation for 1 KB (2 blocks)
 
-        // Allocate blocks for the file
-        int[] allocatedBlocks = fileSystem.allocateBlocksForFile(iNodeNumber, numBytes);
+    public class FileSystemTest {
 
-        // Validate the allocated blocks
-        assertNotNull(allocatedBlocks, "Allocated blocks should not be null.");
-        assertEquals(allocatedBlocks.length, 2, "The number of allocated blocks should match the required blocks.");
+        private FileSystem fileSystem;
 
-        // Check that the blocks are indeed allocated (i.e., no free)
-        FreeBlockList freeBlockList = fileSystem.getDisk().readFreeBlockList();
-        for (int block : allocatedBlocks) {
-            assertTrue(freeBlockList.isBlockFree(block), "Block should be allocated but found free.");
+        @BeforeMethod
+        public void setUp() throws IOException {
+            fileSystem = new FileSystem();
+        }
+
+
+
+
+        @Test(expectedExceptions = IOException.class, expectedExceptionsMessageRegExp = "FileSystem::write: Insufficient space")
+        public void testWriteInsufficientSpace() throws IOException {
+            // Arrange
+            String fileName = "testFile.txt";
+            int fileDescriptor = fileSystem.create(fileName);
+            String data = new String(new char[Disk.BLOCK_SIZE * Disk.NUM_BLOCKS + 1]).replace('\0', 'X'); // Excessive data to fill disk
+
+            // Act & Assert
+            // Try writing data larger than available disk space
+            fileSystem.write(fileDescriptor, data);
+        }
+
+        @Test
+        public void testWriteMultipleBlocks() throws IOException {
+            // Arrange
+            String fileName = "multiBlockFile.txt";
+            int fileDescriptor = fileSystem.create(fileName);
+            String data = new String(new char[Disk.BLOCK_SIZE * 2]).replace('\0', 'A'); // Data requiring 2 blocks
+
+            // Act
+            fileSystem.write(fileDescriptor, data);
+
+            // Assert
+            INode inode = fileSystem.diskDevice.readInode(fileDescriptor);
+            assertEquals(inode.getSize(), data.length(), "File size should match the data size");
+            // Ensure blocks have been allocated
+            for (int i = 0; i < INode.NUM_BLOCK_POINTERS; i++) {
+                if (inode.getBlockPointer(i) != -1) {
+                    byte[] blockData = fileSystem.diskDevice.readDataBlock(inode.getBlockPointer(i));
+                    assertNotNull(blockData, "Block data should not be null");
+                }
+            }
+        }
+
+
+        @Test
+        public void testWriteEmptyData() throws IOException {
+            // Arrange
+            String fileName = "emptyDataFile.txt";
+            int fileDescriptor = fileSystem.create(fileName);
+            String data = ""; // Empty data
+
+            // Act
+            fileSystem.write(fileDescriptor, data);
+
+            // Assert
+            INode inode = fileSystem.diskDevice.readInode(fileDescriptor);
+            assertEquals(inode.getSize(), 0, "File size should be 0 for empty data");
+        }
+        @Test
+        public void testAllocateBlocksForFile_Success() throws IOException {
+            // Set up FileSystem and Disk
+            FileSystem fs = new FileSystem();
+            Disk disk = new Disk();
+            disk.format();  // Make sure the disk is formatted and all blocks are free
+
+            // Set up a file size that requires a few blocks (1 KB)
+            int fileSize = 1024;  // 1 KB (just 2 blocks, assuming each block is 512 bytes)
+            int iNodeNumber = 1;
+
+            // Simulate allocating blocks through the FileSystem, not Disk directly
+            int[] allocatedBlocks = fs.allocateBlocksForFile(iNodeNumber, fileSize);  // This should be called on the FileSystem instance
+
+            // Assert that the correct number of blocks were allocated
+            assertEquals(2, allocatedBlocks.length);
+
+            // Ensure that the inode has the correct block pointers
+            INode inode = disk.readInode(iNodeNumber);
+            assertNotNull(inode);
+            assertEquals(allocatedBlocks[0], inode.getBlockPointer(0));
+            assertEquals(allocatedBlocks[1], inode.getBlockPointer(1));
+
+            // Ensure that the free block list was updated correctly
+            byte[] freeBlockList = disk.readFreeBlockList();
+            for (int block : allocatedBlocks) {
+                assertTrue((freeBlockList[block / 8] & (1 << (block % 8))) != 0);
+            }
+        }
+        @Test
+        public void testAllocateBlocksForFile_InsufficientBlocks() throws IOException {
+            // Set up FileSystem and Disk
+            FileSystem fs = new FileSystem();
+            Disk disk = new Disk();
+            disk.format();  // Format the disk to clear all blocks
+
+            // Manually occupy all but one block
+            byte[] freeBlockList = disk.readFreeBlockList();
+            for (int i = 1; i < freeBlockList.length * 8; i++) { // Leave the first block free
+                freeBlockList[i / 8] |= (1 << (i % 8));
+            }
+            disk.writeFreeBlockList(freeBlockList);
+
+            // Try to allocate blocks for a file requiring 2 blocks
+            int fileSize = 1024;  // 1 KB (2 blocks required)
+            int iNodeNumber = 1;
+
+            // Assert that an IOException is thrown due to insufficient free blocks
+            assertThrows(IOException.class, () -> fs.allocateBlocksForFile(iNodeNumber, fileSize));
         }
     }
-
-    @Test
-    void testAllocateBlocksForFile_InsufficientBlocks() {
-        // Test if IOException is thrown when not enough free blocks are available.
-        int iNodeNumber = 0;
-        int numBytes = Disk.NUM_BLOCKS * Disk.BLOCK_SIZE; // Request allocation for all blocks (unlikely to succeed)
-
-        try {
-            fileSystem.allocateBlocksForFile(iNodeNumber, numBytes);
-            fail("Expected IOException when trying to allocate more blocks than available.");
-        } catch (IOException e) {
-            assertEquals(e.getMessage(), "FileSystem::allocateBlocksForFile: Not enough free blocks available.");
-        }
-    }
-
-    @Test
-    void testAllocateBlocksForFile_BoundaryConditions() throws IOException {
-        // Test allocation with 1 byte (edge case: should allocate 1 block)
-        int iNodeNumber = 0;
-        int numBytes = 1; // Allocate for 1 byte, which should result in 1 block allocation
-
-        int[] allocatedBlocks = fileSystem.allocateBlocksForFile(iNodeNumber, numBytes);
-        assertNotNull(allocatedBlocks, "Allocated blocks should not be null.");
-        assertEquals(allocatedBlocks.length, 1, "Should allocate exactly 1 block for 1 byte.");
-
-        // Ensure that a block has been allocated and it's the first available one
-        FreeBlockList freeBlockList = fileSystem.getDisk().readFreeBlockList();
-        assertTrue(freeBlockList.isBlockFree(allocatedBlocks[0]), "Allocated block should be free.");
-
-        // Test allocating for a large file that requires more than one block
-        numBytes = Disk.BLOCK_SIZE * 10; // Allocate for 10 blocks worth of data
-        allocatedBlocks = fileSystem.allocateBlocksForFile(iNodeNumber, numBytes);
-
-        assertNotNull(allocatedBlocks, "Allocated blocks should not be null.");
-        assertEquals(allocatedBlocks.length, 10, "Should allocate exactly 10 blocks for 10 blocks worth of data.");
-    }
-
-    @Test
-    void testAllocateBlocksForFile_ZeroBytes() throws IOException {
-        // Test allocating 0 bytes, should not allocate any blocks
-        int iNodeNumber = 0;
-        int numBytes = 0;
-
-        int[] allocatedBlocks = fileSystem.allocateBlocksForFile(iNodeNumber, numBytes);
-
-        assertNotNull(allocatedBlocks, "Allocated blocks should not be null.");
-        assertEquals(allocatedBlocks.length, 0, "No blocks should be allocated for 0 bytes.");
-    }
-}
-
-
-// Updated
