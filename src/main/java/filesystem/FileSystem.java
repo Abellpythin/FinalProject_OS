@@ -132,8 +132,8 @@ public class FileSystem {
      * @throws IOException If disk is not accessible for writing
      */
     public void close(int fileDescriptor) throws IOException {
-        if (fileDescriptor != this.iNodeNumber){
-            throw new IOException("FileSystem::close: file descriptor, "+
+        if (fileDescriptor != this.iNodeNumber) {
+            throw new IOException("FileSystem::close: file descriptor, " +
                     fileDescriptor + " does not match file descriptor " +
                     "of open file");
         }
@@ -237,6 +237,8 @@ public class FileSystem {
     /**
      * Add your Javadoc documentation for this method
      */
+
+
     public int[] allocateBlocksForFile(int iNodeNumber, int numBytes) throws IOException {
         // Calculate the number of blocks required for the given file size (rounded up)
         int numBlocksRequired = (numBytes + Disk.BLOCK_SIZE - 1) / Disk.BLOCK_SIZE; // Round up
@@ -339,37 +341,33 @@ public class FileSystem {
     /**
      * Add your Javadoc documentation for this method
      */
-
-
-    public void deallocateBlocksForFile(int iNodeNumber) {
+    void deallocateBlocksForFile(int iNodeNumber) {
         try {
+            // Retrieve the INode for the file
             INode inode = diskDevice.readInode(iNodeNumber);
 
+            // Iterate through block pointers in the INode
             for (int i = 0; i < INode.NUM_BLOCK_POINTERS; i++) {
                 int blockPointer = inode.getBlockPointer(i);
-
-                if (blockPointer != -1) {
-                    diskDevice.readFreeBlockList();
+                if (blockPointer != -1) { // Check if the block pointer is valid
+                    // Deallocate the block
                     FreeBlockList freeBlockList = new FreeBlockList();
+                    freeBlockList.setFreeBlockList(diskDevice.readFreeBlockList());
                     freeBlockList.deallocateBlock(blockPointer);
-
                     diskDevice.writeFreeBlockList(freeBlockList.getFreeBlockList());
+
+                    // Reset the block pointer in the INode
+                    inode.setBlockPointer(i, -1);
                 }
             }
+
+            // Write the updated INode back to disk
+            diskDevice.writeInode(inode, iNodeNumber);
+
         } catch (IOException e) {
-            System.err.println("Error deallocating blocks for inode number: " + iNodeNumber);
+            System.err.println("Error while deallocating blocks for INode " + iNodeNumber + ": " + e.getMessage());
             e.printStackTrace();
-        }           
+        }
     }
-
-                // Write the updated INode back to disk
-                diskDevice.writeInode(inode, iNodeNumber);
-
-            } catch (IOException e) {
-                System.err.println("Error while deallocating blocks for INode " + iNodeNumber + ": " + e.getMessage());
-                e.printStackTrace();
-            }
-    }
-
 }
 

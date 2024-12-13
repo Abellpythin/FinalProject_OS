@@ -142,5 +142,82 @@ import java.io.IOException;
                 fail("IOException occurred: " + ioe.getMessage());
             }
         }
+        @Test
+        public void testDeallocateSingleBlock() throws IOException {
+            // Arrange
+            String fileName = "singleBlockFile.txt";
+            int fileDescriptor = fileSystem.create(fileName);
+            String data = new String(new char[Disk.BLOCK_SIZE]).replace('\0', 'A'); // Data for 1 block
+            fileSystem.write(fileDescriptor, data);
+
+            // Act
+            fileSystem.deallocateBlocksForFile(fileDescriptor);
+
+            // Assert
+            INode inode = fileSystem.diskDevice.readInode(fileDescriptor);
+            for (int i = 0; i < INode.NUM_BLOCK_POINTERS; i++) {
+                assertEquals(inode.getBlockPointer(i), -1, "Block pointer should be -1 after deallocation");
+            }
+        }
+
+        @Test
+        public void testDeallocateMultipleBlocks() throws IOException {
+            // Arrange
+            String fileName = "multiBlockFile.txt";
+            int fileDescriptor = fileSystem.create(fileName);
+            String data = new String(new char[Disk.BLOCK_SIZE * 3]).replace('\0', 'B'); // Data for 3 blocks
+            fileSystem.write(fileDescriptor, data);
+
+            // Act
+            fileSystem.deallocateBlocksForFile(fileDescriptor);
+
+            // Assert
+            INode inode = fileSystem.diskDevice.readInode(fileDescriptor);
+            for (int i = 0; i < INode.NUM_BLOCK_POINTERS; i++) {
+                assertEquals(inode.getBlockPointer(i), -1, "Block pointer should be -1 after deallocation");
+            }
+        }
+
+        @Test
+        public void testDeallocateEmptyFile() throws IOException {
+            // Arrange
+            String fileName = "emptyFile.txt";
+            int fileDescriptor = fileSystem.create(fileName);
+
+            // Act
+            fileSystem.deallocateBlocksForFile(fileDescriptor);
+
+            // Assert
+            INode inode = fileSystem.diskDevice.readInode(fileDescriptor);
+            for (int i = 0; i < INode.NUM_BLOCK_POINTERS; i++) {
+                assertEquals(inode.getBlockPointer(i), -1, "Block pointer should be -1 for an empty file");
+            }
+        }
+
+
+        @Test
+        public void testDeallocateMixedFiles() throws IOException {
+            // Arrange
+            String fileName1 = "file1.txt";
+            String fileName2 = "file2.txt";
+            int fd1 = fileSystem.create(fileName1);
+            int fd2 = fileSystem.create(fileName2);
+            String data1 = new String(new char[Disk.BLOCK_SIZE]).replace('\0', 'X'); // Data for 1 block
+            String data2 = new String(new char[Disk.BLOCK_SIZE * 2]).replace('\0', 'Y'); // Data for 2 blocks
+            fileSystem.write(fd1, data1);
+            fileSystem.write(fd2, data2);
+
+            // Act
+            fileSystem.deallocateBlocksForFile(fd1);
+            fileSystem.deallocateBlocksForFile(fd2);
+
+            // Assert
+            INode inode1 = fileSystem.diskDevice.readInode(fd1);
+            INode inode2 = fileSystem.diskDevice.readInode(fd2);
+            for (int i = 0; i < INode.NUM_BLOCK_POINTERS; i++) {
+                assertEquals(inode1.getBlockPointer(i), -1, "Block pointer for file1 should be -1 after deallocation");
+                assertEquals(inode2.getBlockPointer(i), -1, "Block pointer for file2 should be -1 after deallocation");
+            }
+        }
 
     }
