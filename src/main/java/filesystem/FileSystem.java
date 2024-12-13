@@ -29,10 +29,11 @@ public class FileSystem {
         for (int i = 0; i < Disk.NUM_INODES && !isCreated; i++) {
             tmpINode = diskDevice.readInode(i);
             String name = tmpINode.getFileName();
-            if (name.trim().equals(fileName)){
-                throw new IOException("FileSystem::create: "+fileName+
-                        " already exists");
-            } else if (tmpINode.getFileName() == null) {
+
+            // The Fix: Add a null check before calling trim()
+            if (name != null && name.trim().equals(fileName)) {
+                throw new IOException("FileSystem::create: " + fileName + " already exists");
+            } else if (tmpINode.getFileName() == null) { // No need for trim() here since we already checked for null
                 this.iNodeForFile = new INode();
                 this.iNodeForFile.setFileName(fileName);
                 this.iNodeNumber = i;
@@ -46,6 +47,7 @@ public class FileSystem {
 
         return fileDescriptor;
     }
+
 
     /**
      * Removes the file
