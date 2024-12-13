@@ -148,8 +148,26 @@ public class FileSystem {
      * Add your Javadoc documentation for this method
      */
     public String read(int fileDescriptor) throws IOException {
-        // TODO: Replace this line with your code
-        return null;
+        if (fileDescriptor != this.iNodeNumber || this.iNodeForFile == null) {
+            throw new IOException("FileSystem::read: Invalid file descriptor or inode is null.");
+        }
+
+        INode inode = this.iNodeForFile;
+        int fileSize = inode.getSize();
+        byte[] fileData = new byte[fileSize];
+        int bytesRead = 0;
+
+        // Read from each allocated block
+        for (int i = 0; i < INode.NUM_BLOCK_POINTERS && bytesRead < fileSize; i++) {
+            int blockNumber = inode.getBlockPointer(i);
+            if (blockNumber == -1) break;
+
+            byte[] blockData = diskDevice.readDataBlock(blockNumber);
+            int bytesToRead = Math.min(Disk.BLOCK_SIZE, fileSize - bytesRead);
+            System.arraycopy(blockData, 0, fileData, bytesRead, bytesToRead);
+            bytesRead += bytesToRead;
+        }
+        return new String(fileData);
     }
 
 
@@ -157,9 +175,8 @@ public class FileSystem {
      * Add your Javadoc documentation for this method
      */
     public void write(int fileDescriptor, String data) throws IOException {
-        String fileName = this.iNodeForFile.getFileName();
-        if (fileName == null) {
-            throw new IOException("FileSystem::write: File name is null");
+        if (fileDescriptor != this.iNodeNumber || this.iNodeForFile == null) {
+            throw new IOException("FileSystem::write: Invalid file descriptor");
         }
 
         int dataSize = data.length();
@@ -195,7 +212,10 @@ public class FileSystem {
                 // Write the block data
                 int start = blockIndex * Disk.BLOCK_SIZE;
                 int end = Math.min(dataSize, start + Disk.BLOCK_SIZE);
-                byte[] blockData = data.substring(start, end).getBytes();
+                byte[] blockData = new byte[Disk.BLOCK_SIZE]; // Ensure block size is consistent
+                byte[] dataBytes = data.substring(start, end).getBytes();
+                System.arraycopy(dataBytes, 0, blockData, 0, dataBytes.length); // Copy data into block
+
                 diskDevice.writeDataBlock(blockData, i);
 
                 // Update inode block pointers
@@ -211,6 +231,7 @@ public class FileSystem {
         // Write updated free block list to disk
         diskDevice.writeFreeBlockList(freeBlockList.getFreeBlockList());
     }
+
 
 
     /**

@@ -123,6 +123,25 @@ import java.io.IOException;
             // Assert that an IOException is thrown due to insufficient free blocks
             assertThrows(IOException.class, () -> fs.allocateBlocksForFile(iNodeNumber, fileSize));
         }
+
+        @Test
+        void read() {
+            try {
+
+                FileSystem fs = new FileSystem();
+                String fileName = "testFile.txt";
+                int fileDescriptor = fs.create(fileName);
+                String dataToWrite = "This is test data for the file system.";
+                fs.write(fileDescriptor, dataToWrite);
+                String dataRead = fs.read(fileDescriptor);
+                assertEquals(dataToWrite, dataRead);
+
+            } catch (IOException ioe) {
+                ioe.printStackTrace();
+                fail("IOException occurred: " + ioe.getMessage());
+            }
+        }
+
     }
 
 
